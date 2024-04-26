@@ -161,3 +161,137 @@ touchscreen:
               }
             }
           }
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+# -> BINARY SENSOR <- #
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+binary_sensor:  
+
+# -> HOME PAGE <- #
+  - platform: touchscreen
+    page_id: home_page
+    id: home_page_binary
+    x_min: 0
+    x_max: 240
+    y_min: 0
+    y_max: 240
+    on_double_click:
+      min_length: 1ms
+      max_length: 700ms
+      then: 
+        - voice_assistant.start:
+
+# -> PAGE 1 <- #
+  - platform: touchscreen
+    page_id: page1
+    id: page1_binary
+    x_min: 0
+    x_max: 240
+    y_min: 0
+    y_max: 240
+    on_double_click:
+      min_length: 1ms
+      max_length: 700ms
+      then: 
+        - voice_assistant.start:
+    on_click:
+      min_length: 4000ms
+      max_length: 15000ms
+      then:
+        - switch.turn_on: use_listen_light
+
+# -> PAGE 2 <- #
+  - platform: touchscreen
+    page_id: page2
+    id: page2_binary
+    x_min: 0
+    x_max: 240
+    y_min: 0
+    y_max: 240
+    on_double_click:
+      min_length: 1ms
+      max_length: 700ms
+      then: 
+        - voice_assistant.start:
+    on_click:
+      min_length: 4000ms
+      max_length: 15000ms
+      then:
+        - switch.turn_on: use_listen_light
+
+# -> PAGE 3 <- #
+  - platform: touchscreen
+    page_id: page3
+    id: page3_binary
+    x_min: 0
+    x_max: 240
+    y_min: 0
+    y_max: 240
+    on_double_click:
+      min_length: 1ms
+      max_length: 700ms
+      then: 
+        - voice_assistant.start:
+    on_click:
+      min_length: 4000ms
+      max_length: 15000ms
+      then:
+        - switch.turn_on: use_listen_light
+
+# -> PAGE 4 <- #
+  - platform: touchscreen
+    page_id: page4
+    id: page4_binary
+    x_min: 0
+    x_max: 240
+    y_min: 0
+    y_max: 240
+    on_double_click:
+      min_length: 1ms
+      max_length: 700ms
+      then: 
+        - voice_assistant.start:
+    on_click:
+      min_length: 4000ms
+      max_length: 15000ms
+      then:
+        - switch.turn_on: use_listen_light
+
+# -> PAGE 5 <- #
+  - platform: touchscreen
+    page_id: page5
+    id: page5_binary
+    x_min: 0
+    x_max: 240
+    y_min: 0
+    y_max: 240
+    on_double_click:
+      min_length: 1ms
+      max_length: 700ms
+      then: 
+        - voice_assistant.start:
+    on_click:
+      min_length: 4000ms
+      max_length: 15000ms
+      then:
+        - switch.turn_on: use_listen_light
+
+# -> PAGE 6 <- #
+  - platform: touchscreen
+    page_id: page6
+    id: page6_binary
+    x_min: 0
+    x_max: 240
+    y_min: 0
+    y_max: 240
+    on_double_click:
+      min_length: 1ms
+      max_length: 700ms
+      then: 
+        - voice_assistant.start:
+    on_click:
+      min_length: 4000ms
+      max_length: 15000ms
+      then:
+        - switch.turn_on: use_listen_light
+
