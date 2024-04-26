@@ -1,0 +1,105 @@
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+# -----> SWIPE GESTURES  <----- #
+# ---> Basic Example  <--- #
+# -> for T-Watch LoRa <- #
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+# -> GLOBALS <- #
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+globals: 
+  - id: start_x
+    type: int
+    restore_value: no
+    initial_value: "0"
+  - id: start_y
+    type: int
+    restore_value: no
+    initial_value: "0" 
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+# -> DISPLAY & TOUCH <- #
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+display:
+  - platform: ili9xxx
+    model: ST7789V
+    id: screen
+    transform:
+      mirror_x: true
+      mirror_y: true
+      swap_xy: false
+    dimensions:
+      width: 240
+      height: 240
+      offset_width: 0
+      offset_height: 80
+    invert_colors: true
+    cs_pin: 12
+    dc_pin: 38
+    pages:
+    
+# -> HOME PAGE <- #      
+      - id: home_page
+        lambda: |-
+          it.image(0, 0, id(logo_img));
+
+# -> PAGE 1 <- #
+      - id: page1
+        lambda: |- 
+          it.fill(id(blue));
+
+# -> PAGE 2 <- #
+      - id: page2
+        lambda: |- 
+          it.fill(id(red));
+
+# -> TOUCHSCREEN <- #
+touchscreen:
+  - platform: ft63x6
+    interrupt_pin: 
+      number: GPIO16
+      # allow_other_uses: true
+    address: 0x38
+    display: screen
+    id: tscreen
+    i2c_id: tsc
+    calibration:
+      x_min: 0
+      x_max: 240
+      y_min: 0
+      y_max: 240
+    
+    # -> ON TOUCH <- #  
+    on_touch:
+      - light.turn_on: 
+          id: led
+          brightness: 50%
+
+    # -> ON UPDATE <- #
+    on_update:
+      - lambda: |-
+          for (auto touch: touches)  {
+            if (touch.state == 1) {
+              // Touch started, store initial position
+              id(start_x) = touch.x;
+              id(start_y) = touch.y;
+            } else if (touch.state >= 4) {
+              // Touch ended, compare final position to initial
+              int dx = touch.x - id(start_x);
+              int dy = touch.y - id(start_y);
+              if (abs(dx) > abs(dy)) {
+                // Horizontal swipe
+                if (dx > 0) {
+                  // Right swipe
+                  id(screen).show_page(id(page2));
+                } else {
+                  // Left swipe
+                 id(screen).show_page(id(page1));
+                }
+              }
+            }
+          }
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
