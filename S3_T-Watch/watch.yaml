@@ -1,0 +1,1262 @@
+
+
+##################################
+###############################
+# 1.54" LCD TOUCH CAPTIVE ST7789V
+# 400 mA Litium battery
+# Triaxial accelerometer BMA423
+# Touch Screen Chip: FT6236U
+# LoRa SX1262
+# PMU Power Management: AXP2101
+# Speaker: PIR
+# DRV2605 Haptic Motor  SDA: IO10 SCL: IO11
+# RTC Clock Module: PCF8563
+ 
+###############################
+# -> LILYGO-T-Watch-S3 <- #
+# -> ESPHOME <- #
+# -> https://github.com/velijv/LILYGO-T-Watch-S3-ESPHome <- #
+#############################
+ 
+esphome:
+ # includes:
+   # - /config/esphome/apps/music
+  name: watch2
+  friendly_name: watch2
+  platformio_options:
+    board_build.flash_mode: dio
+  on_boot:
+    then:
+      - light.turn_on: 
+          id: led
+          brightness: 100%
+      - display.page.show: home_page
+      - delay: 6s
+      - light.turn_off: led
+ 
+
+
+
+
+esp32:
+  flash_size: 16MB  
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  framework:
+    type: esp-idf
+    version: recommended
+    sdkconfig_options:
+        CONFIG_ESP32_S3_BOX_BOARD: "y"
+        CONFIG_ESP32_WIFI_STATIC_RX_BUFFER_NUM: "16"
+        CONFIG_ESP32_WIFI_DYNAMIC_RX_BUFFER_NUM: "512"
+        CONFIG_TCPIP_RECVMBOX_SIZE: "512"
+        CONFIG_TCP_SND_BUF_DEFAULT: "65535"
+        CONFIG_TCP_WND_DEFAULT: "512000"
+        CONFIG_TCP_RECVMBOX_SIZE: "512"
+    components:
+      - name: esp32_s3_box_3_board
+        source: github://jesserockz/esp32-s3-box-3-board@main
+        refresh: 0s
+      - name: lvgl
+        source: github://clydebarrow/esphome@lvgl
+        refresh: 0s
+        
+psram:
+  mode: octal
+  speed: 80MHz
+ 
+# -> LOGS <- # 
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+  logs:
+    esp32_ble: WARN
+    esp32_ble_tracker: WARN
+    ble_dist: WARN
+    sensor: WARN
+    ledc.output: WARN
+    component: WARN
+    ili9xxx: WARN
+    tt21100: WARN
+    touchscreen: WARN
+    wifi: WARN
+    es8311: WARN
+    i2s_audio: WARN
+    voice_assistant: WARN
+    es7210: WARN
+
+# deep_sleep:
+#   id: sleep_1
+#   run_duration: 30s
+#   wakeup_pin: 
+#     number: 16
+#     allow_other_uses: true
+#     inverted: true
+#   wakeup_pin_mode: KEEP_AWAKE
+
+
+api:
+  encryption:
+    key: !secret api_key
+  on_client_connected:
+  #  - if:
+     #   condition:
+      #    lambda: 'return (0 == client_info.find("Home Assistant "));'
+      then:
+       #   - lvgl.widget.show: lbl_hastatus
+        - lambda: |-
+            id(api_connection) = true;
+  on_client_disconnected:
+  #  - if:
+    #    condition:
+     #     lambda: 'return (0 == client_info.find("Home Assistant "));'
+      then:
+      #    - lvgl.widget.hide: lbl_hastatus    
+        - lambda: |-
+              id(api_connection) = false;
+
+# Custom Creates a service to start listening
+  services:
+    - service: va_start
+      then: 
+        - voice_assistant.start:
+            silence_detection: true     
+    - service: va_stop
+      then:
+        - voice_assistant.stop
+    - service: va_media_stop
+      then:
+        - media_player.stop
+    - service: wait_and_start_va
+      then:
+        - script.execute: wait_and_start_va
+    - service: change_display
+      then:
+        - script.execute: change_display
+ 
+ota:
+ 
+wifi:
+  networks:
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
+    - ssid: !secret phone_ssid
+      password: !secret phone_password
+ # ssid: !secret wifi_ssid
+ # password: !secret wifi_password
+  on_connect:
+    - lambda: |-
+        id(wifi_connection) = true;
+  on_disconnect:
+    - lambda: |-
+        id(wifi_connection) = false;
+
+
+globals:
+  - id: wifi_connection
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: api_connection
+    type: bool
+    restore_value: no
+    initial_value: "false" 
+  - id: start_x
+    type: int
+    restore_value: no
+    initial_value: "0"
+  - id: start_y
+    type: int
+    restore_value: no
+    initial_value: "0" 
+  - id: current_page
+    type: int
+    restore_value: no
+    initial_value: "0" 
+
+
+# -> TIME <- #
+time:
+  - platform: pcf8563
+    id: rtc_time
+    i2c_id: general
+    address: 0x51
+    update_interval: never
+ 
+  - platform: homeassistant
+    id: time_ha
+    timezone: Europe/Stockholm  
+    on_time_sync:
+      then:
+        pcf8563.write_time:
+ 
+# In combination with the `ap` this allows the user
+# to provision wifi credentials to the device.
+captive_portal:
+#axp2101:
+#  i2c_id: general
+#  address: 0x34 
+##########################################################
+ 
+########################
+# -> EXTERNAL COMPONENTS <- #
+########################
+external_components:
+  - source:
+      type: git
+      url: "https://github.com/gnumpi/esphome_audio"
+      ref: dev-next
+    components: [ adf_pipeline, i2s_audio ]
+    refresh: 0s 
+  - source: github://pr#6520
+    components: voice_assistant
+    refresh: 0s    
+  - source: github://clydebarrow/esphome@lvgl
+    components: [ lvgl ]     
+##################################
+
+########################
+# -> SENSOR <- #
+######################## 
+sensor:
+
+
+
+  - platform: homeassistant
+    id: total_power_lights
+    entity_id: sensor.total_power_lights
+  
+  - platform: homeassistant
+    id: news_sensor
+    entity_id: sensor.sr_api_1
+  
+
+  - platform: uptime
+    name: Uptime Sensor
+
+ 
+########################
+# -> SCRIPT <- #
+########################
+script:
+# -> PAGE 1 SCRIPT <- # TÄND / SLÄCK
+  - id: page1_script
+    then:
+      - homeassistant.service:
+          service: script.if_low_w_lights_on_else_lights_off
+
+# -> PAGE 2 SCRIPT <- #   TV 
+  - id: page2_script
+    then:
+      - homeassistant.service:
+          service: shell_command.media_controller
+          data:
+            search: two and a half men
+            typ: tv
+            player: remote.shield
+
+# -> PAGE 3 SCRIPT <- #    MUSIC
+  - id: page3_script
+    then:
+      - homeassistant.service:
+          service: shell_command.media_controller
+          data:
+            search: " "
+            typ: jukebox
+            player: remote.shield
+
+# -> PAGE 4 SCRIPT <- #   NEWS  
+  - id: page4_script
+    then:
+      - homeassistant.service:
+          service: media_player.play_media
+          data:
+            media_content: music
+            target: |-
+              entity_id: media_player.watch_player
+          data_template:
+            media_content_id: |-
+              {{ news_variable }}
+          variables:
+            news_variable: |-
+              return id(news_sensor).state;
+
+# -> PAGE 5 SCRIPT <- #    ALARM 
+  - id: page5_script
+    then:
+      - delay: 2s
+      #- homeassistant.service:
+      #    service: script.if_low_w_lights_on_else_lights_off
+
+# -> PAGE 6 SCRIPT <- #   PHONE  
+  - id: page6_script
+    then:
+      - homeassistant.service:
+          service: script.find_my_iphone
+
+# -> PAGE 7 SCRIPT <- # BUSS   
+  - id: page7_script
+    then:
+      #- homeassistant.service:
+      #    service: shell_command.resrobot
+      #    data: 
+      #      departure: vasaplan
+      #      destination: röbäck
+      - homeassistant.event:
+          event: esphome.button_pressed
+          data:
+            message: buss
+
+# -> CHANGE DISPLAY PAGE SCRIPT <- #
+  - id: change_display
+    then:
+      - delay: 2s
+      
+# -> CAN I HELP SCRIPT <- #
+  - id: canihelp
+    then:
+      - homeassistant.event:
+          event: esphome.button_pressed
+          data:
+            message: canihelp
+
+
+# -> WAIT AND START VA <- #  
+  - id: wait_and_start_va
+    then:
+      - delay: 13s
+      - wait_until:
+          not:
+            media_player.is_playing:
+      - delay: 100ms
+      - voice_assistant.start:
+
+# -> RESET LED <- #  
+  - id: reset_led
+    then:
+      - if:
+          condition:
+            - switch.is_on: use_wake_word
+            - switch.is_on: use_listen_light
+          then:
+            - light.turn_on:
+                id: led
+                red: 100%
+                green: 89%
+                blue: 71%
+                brightness: 60%
+                effect: none
+          else:
+            - light.turn_off: led
+
+
+# -> TIME UPDATE <- #  
+
+    
+
+
+
+#interval:
+#  - interval: 1min
+#    then:
+#      - script.execute: time_update
+
+
+
+########################  
+ 
+########################
+# -> BUTTON <- #
+########################
+button:
+  - platform: restart
+    name: reboot
+    id: rst_but
+ 
+########################    
+ 
+ 
+########################
+# -> SWITCH <- #
+########################
+switch:
+# -> USE WAKE WORD <- #
+  - platform: template
+    name: Use wake word
+    id: use_wake_word
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    entity_category: config
+    on_turn_on:
+      - lambda: id(va).set_use_wake_word(true);
+      - if:
+          condition:
+            not:
+              - voice_assistant.is_running
+          then:
+            - voice_assistant.start_continuous
+    on_turn_off:
+      - voice_assistant.stop
+      - lambda: id(va).set_use_wake_word(false);
+ 
+# -> USE LISTEN LIGHT <- #
+  - platform: template
+    name: Use listen light
+    id: use_listen_light
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    entity_category: config
+    on_turn_on:
+      - script.execute: reset_led
+    on_turn_off:
+      - script.execute: reset_led
+ 
+# -> IR COMMANDS <- #
+  - platform: template
+    name: "TV Power"
+    turn_on_action:
+      - remote_transmitter.transmit_pronto:
+          data: "0000 0064 0000 000d 0064 001b 001a 0019 0032 0019 001a 0019 001a 0019 001a 0019 001a 0019 001a 0019 0032 0019 001a 0019 001a 0019 001a 0019 001a 044c"
+  - platform: template
+    name: "TV Vol+"
+    turn_on_action:
+      - remote_transmitter.transmit_pronto:
+          data: "0000 006B 0000 002A 0000 00AC 0000 0015 0000 0015 0000 0015 0000 0015 0000 0040 0000 0015 0000 0040 0000 0015 0000 0040 0000 0040 0000 0040 0000 0040 0000 0015 0000 0040 0000 0015 0000 0040 0000 0015 0000 0040 0000 0015 0000 0015 0000 0040 0000 0015 0000 0015 0000 0015 0000 0040 0000 0015 0000 0040 0000 0040 0000 0015 0000 0040 0000 0040 0000 0040 0000 05F1 0000 0056 0000 0E4F 0000 0056 0000 0E4F 0000 0056 0000 0E4F 0000 0056 0000 12F7"
+ 
+ 
+ ##################################################
+ 
+ 
+########################
+# -> TEXT SENSOR <- #
+########################
+ 
+text_sensor:
+# -> CONVERSATION <- #  
+  - id: text_request
+    platform: template
+    on_value:
+      lambda: |-
+        if(id(text_request).state.length()>32) {
+          std::string name = id(text_request).state.c_str();
+          std::string truncated = esphome::str_truncate(name.c_str(),31);
+          id(text_request).state = (truncated+"...").c_str();
+        }
+ 
+  - id: text_response
+    platform: template
+    on_value:
+      lambda: |-
+        if(id(text_response).state.length()>32) {
+          std::string name = id(text_response).state.c_str();
+          std::string truncated = esphome::str_truncate(name.c_str(),31);
+          id(text_response).state = (truncated+"...").c_str();
+        }
+
+ # -> WIFI INFO <- #
+  - platform: wifi_info
+    ip_address:
+      update_interval: 60s
+      name: IP Address
+      entity_category: "diagnostic"
+    ssid:
+      update_interval: 60s
+      name: Connected SSID
+      entity_category: "diagnostic"
+    bssid:
+      update_interval: 60s
+      name: Connected BSSID
+      entity_category: "diagnostic"
+    mac_address:
+      name: Mac Wifi Address
+      entity_category: "diagnostic"
+    scan_results:
+      update_interval: 60s
+      name: Latest Scan Results
+      entity_category: "diagnostic"
+      
+# -> DEVICE UPTIME INFO <- #
+  - platform: template
+    name: Uptime Human Readable
+    id: uptime_human
+    icon: mdi:clock-start
+
+ 
+ 
+##################################
+ 
+########################
+# -> I2C <- #
+########################
+i2c:
+  - id: general
+    sda: 10
+    scl: 11
+  - id: tsc
+    sda: 39
+    scl: 40
+ 
+########################
+# -> SPI <- #
+########################
+spi:
+  - id: tft
+    clk_pin: GPIO18
+    mosi_pin: GPIO13
+    interface: hardware
+ 
+########################
+# -> ADF PIPELINE <- #
+########################
+adf_pipeline:
+  - platform: i2s_audio
+    type: audio_out
+    id: adf_spk
+    i2s_audio_id: i2s_out
+    i2s_dout_pin: GPIO46
+ 
+  - platform: i2s_audio
+    type: audio_in
+    id: adf_mic
+    i2s_audio_id: i2s_in
+    i2s_din_pin: GPIO47
+    channel: right
+    sample_rate: 16000
+    bits_per_sample: 16bit
+    pdm: true
+ 
+########################
+# -> MICROPHONE <- #
+########################
+microphone:
+  - platform: adf_pipeline
+    id: adf_microphone
+    gain_log2: 3
+    keep_pipeline_alive: false
+    pipeline:
+      - adf_mic
+      - self
+ 
+########################
+# -> MEDIA PLAYER <- #
+########################
+media_player:
+  - platform: adf_pipeline
+    id: adf_media_player
+    name: watch player
+    keep_pipeline_alive: false
+    internal: false
+    pipeline:
+      - self
+      - adf_spk
+ 
+########################
+# -> I2S AUDIO <- #
+########################
+i2s_audio:
+  - id: i2s_in
+    i2s_lrclk_pin: GPIO44
+  - id: i2s_out
+    i2s_lrclk_pin: GPIO15
+    i2s_bclk_pin: GPIO48
+ 
+########################
+# -> MICRO WAKE WORD <- #
+########################
+#micro_wake_word:
+#  model: ${micro_wake_word_model}
+#  on_wake_word_detected:
+#    - voice_assistant.start:
+#        wake_word: !lambda return wake_word;
+ 
+########################
+# -> VOICE ASSISTANT <- #
+########################
+voice_assistant:
+  id: va
+  microphone: adf_microphone
+  media_player: adf_media_player
+  volume_multiplier: 3
+  noise_suppression_level: 2
+  auto_gain: 31dBFS
+  use_wake_word: true
+#  on_wake_word_detected:
+#    - media_player.play_media: "https://qwackify.duckdns.org/sound/qwack.mp3"
+  on_listening:
+    - light.turn_on:
+        id: led
+        blue: 100%
+        red: 0%
+        green: 0%
+        effect: "Slow Pulse"
+  on_stt_vad_end:
+    - light.turn_on:
+        id: led
+        blue: 100%
+        red: 0%
+        green: 0%
+        effect: "Fast Pulse"
+  on_stt_end:
+    - text_sensor.template.publish:
+        id: text_request
+        state: !lambda return x;
+  on_tts_start:
+    - light.turn_on:
+        id: led
+        blue: 100%
+        red: 0%
+        green: 0%
+        brightness: 100%
+        effect: none
+    - text_sensor.template.publish:
+        id: text_response
+        state: !lambda return x;
+  on_end:
+    - delay: 100ms
+    - wait_until:
+        not:
+          media_player.is_playing:
+    - script.execute: reset_led
+  on_error:
+    - light.turn_on:
+        id: led
+        red: 100%
+        green: 0%
+        blue: 0%
+        brightness: 100%
+        effect: none
+    - delay: 1s
+    - script.execute: reset_led
+  on_client_connected:
+    - if:
+        condition:
+          switch.is_on: use_wake_word
+        then:
+          - voice_assistant.start_continuous:
+          - script.execute: reset_led
+  on_client_disconnected:
+    - if:
+        condition:
+          switch.is_on: use_wake_word
+        then:
+          - voice_assistant.stop:
+          - light.turn_off: led
+ 
+###################################
+ 
+ 
+ 
+########################
+# -> LIGHT <- #
+########################
+light:
+  - platform: monochromatic
+    id: led
+    name: LCD Backlight
+    entity_category: config
+    output: backlight_output
+    default_transition_length: 500ms
+    restore_mode: RESTORE_AND_OFF
+    effects:
+      - pulse:
+          name: "Slow Pulse"
+          transition_length: 250ms
+          update_interval: 250ms
+          min_brightness: 50%
+          max_brightness: 100%
+      - pulse:
+          name: "Fast Pulse"
+          transition_length: 100ms
+          update_interval: 100ms
+          min_brightness: 50%
+          max_brightness: 100%
+ 
+########################
+# -> DISPLAY & TOUCH <- #
+########################
+display:
+  - platform: ili9xxx
+    model: ST7789V
+    id: screen
+    transform:
+      mirror_x: true
+      mirror_y: true
+      swap_xy: false
+    dimensions:
+      width: 240
+      height: 240
+      offset_width: 0
+      offset_height: 80
+    invert_colors: true
+    cs_pin: 12
+    dc_pin: 38
+    pages:
+
+# -> HOME PAGE <- #
+      - id: home_page
+        lambda: |-
+          it.strftime((it.get_width() / 2), (it.get_height() / 2), id(time_font), TextAlign::CENTER, "%H:%M", id(time_ha).now());
+ 
+
+# -> DUCK PAGE <- #
+      - id: duck_page
+        lambda: |-
+          it.image(0, 0, id(logo_img));
+
+# -> PAGE 1 <- #
+      - id: page1
+        lambda: |- 
+          if (id(total_power_lights).state < 50) {
+            it.image(0, 0, id(page1_img2));
+          } else {
+            it.image(0, 0, id(page1_img));
+          }
+    
+# -> PAGE 2 <- #
+      - id: page2
+        lambda: |- 
+          it.image(0, 0, id(page2_img));
+
+# -> PAGE 3 <- #
+      - id: page3
+        lambda: |- 
+          it.image(0, 0, id(page3_img));
+
+# -> PAGE 4 <- #
+      - id: page4
+        lambda: |- 
+          it.image(0, 0, id(page4_img));
+
+# -> PAGE 5 <- #
+      - id: page5
+        lambda: |- 
+          it.image(0, 0, id(page5_img));
+
+# -> PAGE 6 <- #
+      - id: page6
+        lambda: |- 
+          it.image(0, 0, id(page6_img));      
+
+# -> PAGE 7 <- #
+      - id: page7
+        lambda: |- 
+          it.image(0, 0, id(page7_img));     
+
+# -> TOUCH <- # 
+touchscreen:
+  - platform: ft63x6
+    interrupt_pin: 
+      number: GPIO16
+      # allow_other_uses: true
+    address: 0x38
+    display: screen
+    id: tscreen
+    i2c_id: tsc
+    calibration:
+      x_min: 0
+      x_max: 240
+      y_min: 0
+      y_max: 240
+    on_touch:
+      - light.turn_on: 
+          id: led
+          brightness: 50%
+
+    # -> ON UPDATE <- #
+    on_update:
+      - lambda: |-
+          for (auto touch: touches)  {
+            if (touch.state == 1) {
+              // Touch started, store initial position
+              id(start_x) = touch.x;
+              id(start_y) = touch.y;
+            } else if (touch.state >= 4) {
+              // Touch ended, compare final position to initial
+              int dx = touch.x - id(start_x);
+              int dy = touch.y - id(start_y);
+              if (abs(dx) > abs(dy)) {
+                // Horizontal swipe
+                if (dx > 0) {
+                  // Right swipe
+                  if (id(current_page) == 7) {
+                    id(screen).show_page(id(page6));
+                    id(current_page) = 6;
+                    // If on page 6
+                  } else if (id(current_page) == 6) {
+                    id(screen).show_page(id(page5));
+                    id(current_page) = 5;
+                    // If on page 5
+                  } else if (id(current_page) == 5) {
+                    id(screen).show_page(id(page4));
+                    id(current_page) = 4;
+                  } else if (id(current_page) == 4) {
+                    id(screen).show_page(id(page3));
+                    id(current_page) = 3;
+                  } else if (id(current_page) == 3) {
+                    id(screen).show_page(id(page2));
+                    id(current_page) = 2;
+                  } else if (id(current_page) == 2) {
+                    id(screen).show_page(id(page1));
+                    id(current_page) = 1;
+                  } else if (id(current_page) == 1) {
+                    id(screen).show_page(id(home_page));
+                    id(current_page) = 0;
+                  }
+                } else {
+                  // Left swipe
+                  if (id(current_page) == 0) {
+                    id(screen).show_page(id(page1));
+                    id(current_page) = 1;
+                  } else if (id(current_page) == 1) {
+                    id(screen).show_page(id(page2));
+                    id(current_page) = 2;
+                  } else if (id(current_page) == 2) {
+                    id(screen).show_page(id(page3));
+                    id(current_page) = 3;
+                  } else if (id(current_page) == 3) {
+                    id(screen).show_page(id(page4));
+                    id(current_page) = 4;
+                  } else if (id(current_page) == 4) {
+                    id(screen).show_page(id(page5));
+                    id(current_page) = 5;
+                  } else if (id(current_page) == 5) {
+                    id(screen).show_page(id(page6));
+                    id(current_page) = 6;
+                  } else if (id(current_page) == 6) {
+                    id(screen).show_page(id(page7));
+                    id(current_page) = 7;
+                  }
+                }
+              }
+            }
+          }
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+# -> BINARY SENSOR <- #
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+binary_sensor:  
+
+# -> HOME PAGE <- #
+  - platform: touchscreen
+    page_id: home_page
+    id: home_page_binary
+    x_min: 0
+    x_max: 240
+    y_min: 0
+    y_max: 240
+    on_click:
+      min_length: 100ms
+      max_length: 5000ms
+      then:
+        - homeassistant.event:
+            event: esphome.button_pressed
+            data:
+              message: canihelp
+    on_double_click:
+      min_length: 1ms
+      max_length: 700ms
+      then: 
+        - voice_assistant.start:
+
+# -> PAGE 1 <- #
+  - platform: touchscreen
+    page_id: page1
+    id: page1_binary
+    x_min: 0
+    x_max: 240
+    y_min: 0
+    y_max: 240
+    on_double_click:
+      min_length: 1ms
+      max_length: 700ms
+      then: 
+        - voice_assistant.start:
+    on_click:
+      min_length: 3000ms
+      max_length: 15000ms
+      then:
+        - script.execute: page1_script    
+
+# -> PAGE 2 <- #
+  - platform: touchscreen
+    page_id: page2
+    id: page2_binary
+    x_min: 0
+    x_max: 240
+    y_min: 0
+    y_max: 240
+    on_double_click:
+      min_length: 1ms
+      max_length: 700ms
+      then: 
+        - voice_assistant.start:
+    on_click:
+      min_length: 3000ms
+      max_length: 15000ms
+      then:
+        - script.execute: page2_script    
+
+# -> PAGE 3 <- #
+  - platform: touchscreen
+    page_id: page3
+    id: page3_binary
+    x_min: 0
+    x_max: 240
+    y_min: 0
+    y_max: 240
+    on_double_click:
+      min_length: 1ms
+      max_length: 700ms
+      then: 
+        - voice_assistant.start:
+    on_click:
+      min_length: 3000ms
+      max_length: 15000ms
+      then:
+        - script.execute: page3_script    
+
+# -> PAGE 4 <- #
+  - platform: touchscreen
+    page_id: page4
+    id: page4_binary
+    x_min: 0
+    x_max: 240
+    y_min: 0
+    y_max: 240
+    on_double_click:
+      min_length: 1ms
+      max_length: 700ms
+      then: 
+        - voice_assistant.start:
+    on_click:
+      min_length: 3000ms
+      max_length: 15000ms
+      then:
+        - script.execute: page4_script
+
+# -> PAGE 5 <- #
+  - platform: touchscreen
+    page_id: page5
+    id: page5_binary
+    x_min: 0
+    x_max: 240
+    y_min: 0
+    y_max: 240
+    on_double_click:
+      min_length: 1ms
+      max_length: 700ms
+      then: 
+        - voice_assistant.start:
+    on_click:
+      min_length: 3000ms
+      max_length: 15000ms
+      then:
+        - script.execute: page5_script
+
+# -> PAGE 6 <- #
+  - platform: touchscreen
+    page_id: page6
+    id: page6_binary
+    x_min: 0
+    x_max: 240
+    y_min: 0
+    y_max: 240
+    on_double_click:
+      min_length: 1ms
+      max_length: 700ms
+      then: 
+        - voice_assistant.start:
+    on_click:
+      min_length: 3000ms
+      max_length: 15000ms
+      then:
+        - script.execute: page6_script
+
+# -> PAGE 7 <- #
+  - platform: touchscreen
+    page_id: page7
+    id: page7_binary
+    x_min: 0
+    x_max: 240
+    y_min: 0
+    y_max: 240
+    on_double_click:
+      min_length: 1ms
+      max_length: 700ms
+      then: 
+        - voice_assistant.start:
+    on_click:
+      min_length: 3000ms
+      max_length: 15000ms
+      then:
+        - script.execute: page7_script        
+
+ #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+# -> IMAGE <- #  
+image:
+  - file: images/duck-rain.jpg
+    id: logo_img
+    resize: 240x240
+    type: RGB24
+
+  - file: images/night-duck.png
+    id: page1_img
+    resize: 240x240
+    type: RGB24 
+
+  - file: images/light-duck.png
+    id: page1_img2
+    resize: 240x240
+    type: RGB24 
+
+  - file: images/TV1.png
+    id: page2_img
+    resize: 240x240
+    type: RGB24 
+
+  - file: images/music-duck.png
+    id: page3_img
+    resize: 240x240
+    type: RGB24 
+
+  - file: images/temporary-duck.png
+    id: page4_img
+    resize: 240x240
+    type: RGB24 
+
+  - file: images/alarm-duck.png
+    id: page5_img
+    resize: 240x240
+    type: RGB24 
+
+  - file: images/phone-duck.png
+    id: page6_img
+    resize: 240x240
+    type: RGB24 
+
+  - file: images/buss-duck.png
+    id: page7_img
+    resize: 240x240
+    type: RGB24 
+
+
+# -> FONT <- #
+font:
+  - file: "fonts/materialdesignicons-webfont.ttf"
+    id: battery_icons_20
+    size: 20
+    bpp: 4
+    glyphs: [
+      "\U000F007A", # mdi-battery-10
+      "\U000F007B", # mdi-battery-20
+      "\U000F007C", # mdi-battery-30
+      "\U000F007D", # mdi-battery-40
+      "\U000F007E", # mdi-battery-50
+      "\U000F007F", # mdi-battery-60
+      "\U000F0080", # mdi-battery-70
+      "\U000F0081", # mdi-battery-80
+      "\U000F0082", # mdi-battery-90
+      "\U000F0079", # mdi-battery (full)
+      "\U000F008E", # mdi-battery-outline
+      "\U000F0091", # mdi-battery-unknown
+      ]
+
+
+
+  - file: "gfonts://Roboto"
+    id: roboto10
+    size: 10
+    bpp: 4
+  - file:
+      type: gfonts
+      family: Figtree
+      weight: 800
+      italic: true
+ #   glyphs: ${allowed_characters}
+    id: time_font
+    size: 100
+
+
+
+# -> QR <- #  
+#qr_code:
+#  - id: homepage_qr
+#    value: esphome.io
+ 
+# -> COLOR <- #      
+color:
+  - id: green
+    hex: '75D15F'
+  - id: red
+    hex: 'FF3131'
+  - id: blue
+    hex: '47B7E9'
+  - id: blue_drk
+    hex: '085296'
+  - id: amber
+    hex: 'FBAB35'
+  - id: lime
+    hex: '20FC30'
+  - id: pink
+    hex: 'D92BBC'
+  - id: yellow
+    hex: 'FFC000'
+  - id: black
+    hex: '000000'
+  - id: white
+    hex: 'ffffff'
+  - id: purple
+    hex: '73264D'
+  - id: text_red
+    hex: 'FF3131'
+  - id: text_green
+    hex: '75D15F'
+  - id: text_blue
+    hex: '47B7E9'
+  - id: text_amber
+    hex: 'FBAB35'
+  - id: text_lime
+    hex: '20FC30'
+  - id: text_pink
+    hex: 'D92BBC' 
+ 
+# -> OUTPUT <- #
+output:
+  - platform: ledc
+    pin: GPIO45
+    id: backlight_output 
+ 
+###########################
+ 
+ 
+ 
+
+####################################
+ 
+########################
+# -> IR REMOTE TRANSMITTER <- #
+########################
+remote_transmitter:
+  pin: 2
+  carrier_duty_percent: 50%
+
+
+
+
+
+lvgl:
+    pages:
+      - id: tvremote
+        widgets:
+          - obj: # a properly placed coontainer object for all these controls
+              align: CENTER
+              width: 240
+              height: 260
+              x: 4
+              y: 4
+              pad_all: 3
+              pad_row: 6
+              pad_column: 8
+              bg_opa: transp
+              border_width: 0
+              layout: # enable the FLEX layout for the children widgets
+                type: FLEX
+                flex_flow: COLUMN_WRAP # the order of the widgets starts top left
+                flex_align_cross: CENTER # they sould be centered
+              widgets:
+                - label:
+                    text: "East"
+                - btn:
+                    id: but_cov_up_east
+                    width: 70 # choose the button dimensions so
+                    height: 68 # they fill the columns nincely as they flow
+                    widgets:
+                      - label:
+                          id: cov_up_east
+                          align: center
+                          text: "\U000F005D" # mdi:arrow-up
+                - btn:
+                    id: but_cov_stop_east
+                    width: 70
+                    height: 68
+                    widgets:
+                      - label:
+                          id: cov_stop_east
+                          align: center
+                          text: "\U000F04DB" # mdi:stop
+                - btn:
+                    id: but_cov_down_east
+                    width: 70
+                    height: 68
+                    widgets:
+                      - label:
+                          id: cov_down_east
+                          align: center
+                          text: "\U000F0045" # mdi:arrow-down
+
+                - label:
+                    text: "South"
+                - btn:
+                    id: but_cov_up_south
+                    width: 70
+                    height: 68
+                    widgets:
+                      - label:
+                          id: cov_up_south
+                          align: center
+                          text: "\U000F005D"
+                - btn:
+                    id: but_cov_stop_south
+                    width: 70
+                    height: 68
+                    widgets:
+                      - label:
+                          id: cov_stop_south
+                          align: center
+                          text: "\U000F04DB"
+                - btn:
+                    id: but_cov_down_south
+                    width: 70
+                    height: 68
+                    widgets:
+                      - label:
+                          id: cov_down_south
+                          align: center
+                          text: "\U000F0045"
+
+                - label:
+                    text: "West"
+                - btn:
+                    id: but_cov_up_west
+                    width: 70
+                    height: 68
+                    widgets:
+                      - label:
+                          id: cov_up_west
+                          align: center
+                          text: "\U000F005D"
+                - btn:
+                    id: but_cov_stop_west
+                    width: 70
+                    height: 68
+                    widgets:
+                      - label:
+                          id: cov_stop_west
+                          align: center
+                          text: "\U000F04DB"
+                - btn:
+                    id: but_cov_down_west
+                    width: 70
+                    height: 68
+                    widgets:
+                      - label:
+                          id: cov_down_west
+                          align: center
+                          text: "\U000F0045"
+
+      #    - lambda: id(va).set_volume_multiplier(x);
+      #    - lambda: id(va).set_auto_gain(x);
+       #   - lambda: id(va).set_noise_suppression(x);
+
+
+ 
