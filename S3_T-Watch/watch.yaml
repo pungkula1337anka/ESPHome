@@ -195,6 +195,9 @@ external_components:
     refresh: 0s    
   - source: github://clydebarrow/esphome@lvgl
     components: [ lvgl ]     
+  - source: /config/esphome/apps/music
+
+    
 ##################################
 
 ########################
