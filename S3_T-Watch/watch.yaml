@@ -934,6 +934,15 @@ lvgl:
                         data:
                           entity_id: light.all_bedroom_lights
 
+# -> MUSIC PAGE<- #
+    - id: music_page
+      lambda: |-
+        lv_init();
+        lv_demo_music();
+
+
+
+
                   
       #    - lambda: id(va).set_volume_multiplier(x);
       #    - lambda: id(va).set_auto_gain(x);
